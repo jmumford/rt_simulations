@@ -30,4 +30,6 @@ beta_scales_no_type1err = np.array([.85, .85])
 beta_scales_yes_power={'beta1': .75, 'beta2': [.75, .8, .9,  .95, 1, 1.025, 1.05, 1.1]}
 beta_scales_no_power={'beta1': .85, 'beta2': [.85, .9, .95, 1, 1.05, 1.1, 1.15, 1.2]}
 
-rt_diff_s_vec = [0, .025, 0.05, 0.1, .15]
+rt_diff_s_vec = [0, .025, 0.05, 0.1, .15, .3, .5, 1, 1.5]
+
+per_shift_mu = np.array([.76, .76])

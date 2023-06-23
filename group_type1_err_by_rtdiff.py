@@ -12,20 +12,22 @@ args_in = sys.argv
 
 simulation_settings = args_in[1]
 var_in = __import__(simulation_settings) 
-var_in.rt_diff_s_vec = [0, 0.1]
+#var_in.rt_diff_s_vec = np.linspace(0, .15, num=5)
 
 nsim = int(args_in[2])
 ISI_min = int(args_in[3])
 ISI_max = int(args_in[4])
 
+print(var_in.per_shift_mu)
 
-out_results_name = (f'{root_dir}/Output/group_type1_err_corr_by_rtdiff_output_nsim{nsim}_'
+out_results_name = (f'{root_dir}/Output/revisions/group_type1_err_corr_by_rtdiff_output_nsim{nsim}_'
     f'nsub{var_in.nsub}_mu{var_in.mu_expnorm}_btwn_noise{var_in.btwn_sub_noise_sd["dv_scales_yes"]}'
-    f'{var_in.btwn_sub_noise_sd["dv_scales_no"]}_isi{ISI_min}_{ISI_max}_new.csv')
-out_settings_name = (f'{root_dir}/Output/group_type1_err_corr_by_rtdiff_output_nsim{nsim}'
+    f'{var_in.btwn_sub_noise_sd["dv_scales_no"]}_isi{ISI_min}_{ISI_max}_revisions.csv')
+out_settings_name = (f'{root_dir}/Output/revisions/group_type1_err_corr_by_rtdiff_output_nsim{nsim}'
     f'_nsub{var_in.nsub}_mu{var_in.mu_expnorm}_btwn_noise{var_in.btwn_sub_noise_sd["dv_scales_yes"]}'
-    f'{var_in.btwn_sub_noise_sd["dv_scales_no"]}_isi{ISI_min}_{ISI_max}_new.json')
+    f'{var_in.btwn_sub_noise_sd["dv_scales_no"]}_isi{ISI_min}_{ISI_max}_revisions.json')
 
+print(var_in.rt_diff_s_vec)
 
 output = group_2stim_rt_diff_vec(var_in.n_trials, var_in.repetition_time, var_in.mu_expnorm,
               var_in.lam_expnorm, var_in.sigma_expnorm, var_in.max_rt, 
@@ -33,13 +35,15 @@ output = group_2stim_rt_diff_vec(var_in.n_trials, var_in.repetition_time, var_in
               var_in.win_sub_noise_sd,
               var_in.btwn_sub_noise_sd, 
               var_in.center_rt, var_in.beta_scales_yes_type1err, var_in.beta_scales_no_type1err,  
-              var_in.rt_diff_s_vec, var_in.nsub, nsim)
+              var_in.rt_diff_s_vec, var_in.nsub, nsim, var_in.per_shift_mu)
+
 
 data_type = ['blocked', 'random']
 models = ['Two stimulus types, no RT', 'Two stimulus types, RT mod',
           'Two stimulus types, RTmod interaction, con main', 
           'Two stimulus types, RTmod interaction, con int',
-          'Two stimulus types, 2 RT dur only']
+          'Two stimulus types, 2 RT dur only',
+          'Two stimulus types, 2cons, 1 RT dur']
 scale_type = ['dv_scales_yes', 'dv_scales_no']
 
 

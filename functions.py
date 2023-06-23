@@ -26,7 +26,11 @@ def make_group_names():
     model_types = ['Two stimulus types, no RT', 'Two stimulus types, RT mod',
                    'Two stimulus types, RTmod interaction, con main', 
                    'Two stimulus types, RTmod interaction, con int',
-                   'Two stimulus types, 2 RT dur only']
+                   'Two stimulus types, RTDur interaction, con main',
+                   'Two stimulus types, RTDur interaction, con int',
+                   'Two stimulus types, 2 RT dur only',
+                   'Two stimulus types, 2cons, 1 RT dur']
+    
     dv_types = ['dv_scales_yes', 'dv_scales_no']
     return stimulus_types, model_types, dv_types
 
@@ -48,41 +52,74 @@ def make_3column_onsets(onsets, durations, amplitudes):
     return(np.transpose(np.c_[onsets, durations, amplitudes]))
 
 
+
+def calc_kurt(sigma, lam):
+    num = 3 * (1 + 2/(sigma**2 * lam**2) + 3/(sigma**4 * lam**4))
+    denom = (1 + 1/(lam**2 * sigma**2))**2
+    kurtosis = num/denom - 3
+    return kurtosis
+
+
+def calc_skew(sigma, lam):
+    first_part = 2/(sigma**3 * lam**3)
+    second_part = (1 + 1/(lam**2 * sigma**2))**(-3/2)
+    skew = first_part * second_part
+    return skew
+
+
 def sample_rts_2stim(n_trials, mu_expnorm=600, lam_expnorm=1 / 100,
-                     sigma_expnorm=75, max_rt=2000, min_rt=0, rt_diff_s=.1):
+                     sigma_expnorm=75, max_rt=2000, min_rt=0, rt_diff_s=.1, 
+                     per_shift_mu=np.array([.76, .76])):
     """
     """
     shape_expnorm = 1 / (sigma_expnorm * lam_expnorm)
     sim_num_trials = 0
+
     while sim_num_trials < n_trials:
-        subject_specific_mu_expnorm_short = exponnorm.rvs(shape_expnorm,
+        subject_specific_mean = exponnorm.rvs(shape_expnorm,
                                                           mu_expnorm,
-                                                          sigma_expnorm, 1) -\
-                                                          1 / lam_expnorm -\
-                                                          (rt_diff_s/2 * 1000)
-        subject_specific_mu_expnorm_long = \
-            subject_specific_mu_expnorm_short + rt_diff_s * 1000 
-        rt_trials_twice_what_needed_shorter = \
-            exponnorm.rvs(shape_expnorm, subject_specific_mu_expnorm_short,
-                          sigma_expnorm, n_trials)
-        rt_trials_filtered_shorter = rt_trials_twice_what_needed_shorter[
-            np.where((rt_trials_twice_what_needed_shorter < max_rt) &
-                     (rt_trials_twice_what_needed_shorter > min_rt))]
-        rt_trials_twice_what_needed_longer = \
-            exponnorm.rvs(shape_expnorm, subject_specific_mu_expnorm_long,
-                          sigma_expnorm, n_trials)
-        rt_trials_filtered_longer = \
-            rt_trials_twice_what_needed_longer[
-                np.where((rt_trials_twice_what_needed_longer < max_rt) &
-                         (rt_trials_twice_what_needed_longer > min_rt))]
-        sim_num_trials = (subject_specific_mu_expnorm_short > 0) *\
-                         (rt_trials_filtered_shorter.shape[0] > 
-                          int(n_trials/2)) * \
-                         (rt_trials_filtered_longer.shape[0] > 
-                          int(n_trials/2))*n_trials
+                                                          sigma_expnorm, 1)
+     
+        subject_specific_mu_expnorm_short = per_shift_mu[0] * (subject_specific_mean) - per_shift_mu[1] * (rt_diff_s / 2 * 1000)
+        subject_specific_mu_expnorm_long = per_shift_mu[0] * (subject_specific_mean) + per_shift_mu[1] * (rt_diff_s / 2 * 1000)
+        tau_short = (1 - per_shift_mu[0]) * (subject_specific_mean) - (1 - per_shift_mu[1]) * (rt_diff_s / 2 * 1000)
+        tau_long = (1 - per_shift_mu[0]) * (subject_specific_mean) + (1 - per_shift_mu[1]) * (rt_diff_s / 2 * 1000)
+
+        if subject_specific_mu_expnorm_short > 350 and subject_specific_mu_expnorm_long > 350 and tau_short > 0 and tau_long > 0:
+            sigma_expnorm_short = sigma_expnorm
+            sigma_expnorm_long = sigma_expnorm
+            lam_expnorm_short = 1/tau_short
+            lam_expnorm_long = 1/tau_long
+            shape_expnorm_short = 1/(sigma_expnorm_short * lam_expnorm_short)
+            shape_expnorm_long = 1/(sigma_expnorm_long * lam_expnorm_long)
+            skew_kurt = {
+                'skew_short': calc_skew(sigma_expnorm_short, lam_expnorm_short),
+                'skew_long': calc_skew(sigma_expnorm_long, lam_expnorm_long),
+                'kurt_short': calc_kurt(sigma_expnorm_short, lam_expnorm_short),
+                'kurt_long': calc_kurt(sigma_expnorm_long, lam_expnorm_long)  
+            }
+            
+            rt_trials_twice_what_needed_shorter = \
+                exponnorm.rvs(shape_expnorm_short, subject_specific_mu_expnorm_short,
+                                sigma_expnorm_short, n_trials)
+            rt_trials_filtered_shorter = rt_trials_twice_what_needed_shorter[
+                np.where((rt_trials_twice_what_needed_shorter < max_rt) &
+                            (rt_trials_twice_what_needed_shorter > min_rt))]
+            rt_trials_twice_what_needed_longer = \
+                exponnorm.rvs(shape_expnorm_long, subject_specific_mu_expnorm_long,
+                                sigma_expnorm_long, n_trials)
+            rt_trials_filtered_longer = \
+                rt_trials_twice_what_needed_longer[
+                    np.where((rt_trials_twice_what_needed_longer < max_rt) &
+                                (rt_trials_twice_what_needed_longer > min_rt))]
+            sim_num_trials = (subject_specific_mu_expnorm_short > 0) *\
+                                (rt_trials_filtered_shorter.shape[0] > 
+                                int(n_trials/2)) * \
+                                (rt_trials_filtered_longer.shape[0] > 
+                                int(n_trials/2))*n_trials
     rt_trials_shorter = rt_trials_filtered_shorter[:int(n_trials/2)] / 1000
     rt_trials_longer = rt_trials_filtered_longer[:int(n_trials/2)] / 1000
-    return rt_trials_shorter, rt_trials_longer
+    return rt_trials_shorter, rt_trials_longer, skew_kurt, tau_short, tau_long, subject_specific_mu_expnorm_short, subject_specific_mu_expnorm_long
 
 
 def make_regressors_two_trial_types(n_trials, 
@@ -90,15 +127,15 @@ def make_regressors_two_trial_types(n_trials,
                                     lam_expnorm=1 / 100, sigma_expnorm=75,
                                     max_rt=2000, min_rt=0, event_duration=2,
                                     ISI_min=2, ISI_max=5, center_rt=True,
-                                    rt_diff_s=.1):
+                                    rt_diff_s=.1, per_shift_mu=np.array([.76, .76])):
     """
     """
     if n_trials % 8 != 0:
         print("Error: Please number of trials divisible by 8")
         return 
-    rt_trials_shorter, rt_trials_longer = \
+    rt_trials_shorter, rt_trials_longer, skew_kurt, _, _, _, _ = \
         sample_rts_2stim(n_trials, mu_expnorm, lam_expnorm,
-                         sigma_expnorm, max_rt, min_rt, rt_diff_s)
+                         sigma_expnorm, max_rt, min_rt, rt_diff_s, per_shift_mu)
     ISI = np.random.uniform(low=ISI_min, high=ISI_max, size=n_trials - 1)
     scan_length = rt_trials_shorter.sum() + \
         rt_trials_longer.sum() + ISI.sum() + 50
@@ -203,7 +240,6 @@ def make_regressors_two_trial_types(n_trials,
         make_3column_onsets(onsets_random2,
                             rt_random2,
                             modulation_half)
-    
     col_ons['rt_mod_2stim_blocked_int1'] = \
         make_3column_onsets(onsets_block1,
                             modulation_half,
@@ -229,7 +265,7 @@ def make_regressors_two_trial_types(n_trials,
                 'block2_mean': rt_block_mn2,
                 'random1_mean': rt_random_mn1,
                 'random2_mean': rt_random_mn2}
-    return regressors, rt_means
+    return regressors, rt_means, skew_kurt
 
     
 def make_design_matrices_2stim(regressors):
@@ -287,6 +323,18 @@ def make_design_matrices_2stim(regressors):
         np.concatenate((np.ones(regressor_shape),
                        regressors['rt_dur_2stim_random1'],
                        regressors['rt_dur_2stim_random2']), axis=1)
+    x_duration_event_duration_2stim_blocked_rtdur_int = \
+        np.concatenate((np.ones(regressor_shape),
+                       regressors['stim1_blocked'],
+                       regressors['stim2_blocked'],
+                       regressors['rt_dur_2stim_blocked1'],
+                       regressors['rt_dur_2stim_blocked2']), axis=1)
+    x_duration_event_duration_2stim_random_rtdur_int = \
+        np.concatenate((np.ones(regressor_shape),
+                       regressors['stim1_random'],
+                       regressors['stim2_random'],
+                       regressors['rt_dur_2stim_random1'],
+                       regressors['rt_dur_2stim_random2']), axis=1)
     models = {}
     # repeating interaction model, since that's the easiest way to have 2 contrasts
     # with that model (working with pre-existing code)
@@ -298,8 +346,12 @@ def make_design_matrices_2stim(regressors):
                          x_duration_event_duration_2stim_blocked_rtmod_int,
                          'Two stimulus types, RTmod interaction, con main':
                          x_duration_event_duration_2stim_blocked_rtmod_int,
-                         #'Two stimulus types, RT dur':
-                         #x_duration_event_duration_2stim_blocked_rtdur,
+                         'Two stimulus types, 2cons, 1 RT dur':
+                         x_duration_event_duration_2stim_blocked_rtdur,
+                         'Two stimulus types, RTDur interaction, con int':
+                         x_duration_event_duration_2stim_blocked_rtdur_int,
+                         'Two stimulus types, RTDur interaction, con main':
+                         x_duration_event_duration_2stim_blocked_rtdur_int,
                          'Two stimulus types, 2 RT dur only':
                          x_duration_rt_only_duration_2stim_blocked}
     models['random'] = {'Two stimulus types, no RT':
@@ -310,8 +362,12 @@ def make_design_matrices_2stim(regressors):
                          x_duration_event_duration_2stim_random_rtmod_int,
                         'Two stimulus types, RTmod interaction, con main':
                          x_duration_event_duration_2stim_random_rtmod_int,
-                        #'Two stimulus types, RT dur':
-                        #x_duration_event_duration_2stim_random_rtdur,
+                        'Two stimulus types, 2cons, 1 RT dur':
+                        x_duration_event_duration_2stim_random_rtdur,
+                         'Two stimulus types, RTDur interaction, con int':
+                         x_duration_event_duration_2stim_random_rtdur_int,
+                         'Two stimulus types, RTDur interaction, con main':
+                         x_duration_event_duration_2stim_random_rtdur_int,
                         'Two stimulus types, 2 RT dur only':
                         x_duration_rt_only_duration_2stim_random}
     return models
@@ -326,8 +382,12 @@ def make_lev1_contrasts(dct_basis):
                  np.array([[0, 0, 0, -1, 1] + [0]*dct_basis.shape[1]]),
                 'Two stimulus types, RTmod interaction, con main':
                  np.array([[0, -1, 1, 0, 0] + [0]*dct_basis.shape[1]]),
-                 #'Two stimulus types, RT dur': 
-                 #np.array([[0, -1, 1, 0] + [0]*dct_basis.shape[1]]),
+                 'Two stimulus types, RTDur interaction, con int':
+                 np.array([[0, 0, 0, -1, 1] + [0]*dct_basis.shape[1]]),
+                'Two stimulus types, RTDur interaction, con main':
+                 np.array([[0, -1, 1, 0, 0] + [0]*dct_basis.shape[1]]),
+                 'Two stimulus types, 2cons, 1 RT dur': 
+                 np.array([[0, -1, 1, 0] + [0]*dct_basis.shape[1]]),
                  'Two stimulus types, 2 RT dur only':
                  np.array([[0, -1, 1] + [0]*dct_basis.shape[1]])}
     return contrasts
@@ -361,15 +421,16 @@ def sim_fit_sub_2stim(n_trials, repetition_time=1, mu_expnorm=600,
                                         'dv_scales_no': .1},
                       center_rt=True, beta_scales_yes=np.array([.1, .1]),
                       beta_scales_no=np.array([.1, .1]),
-                      rt_diff_s=1):
+                      rt_diff_s=1, per_shift_mu=np.array([.76, .76])):
     """ 
     """
-    regressors, mean_rt = \
+    regressors, mean_rt, skew_kurt = \
         make_regressors_two_trial_types(n_trials,
                                         repetition_time, mu_expnorm,
                                         lam_expnorm, sigma_expnorm,
                                         max_rt, min_rt, event_duration,
-                                        ISI_min, ISI_max, center_rt, rt_diff_s)
+                                        ISI_min, ISI_max, center_rt, rt_diff_s,
+                                        per_shift_mu)
     models = make_design_matrices_2stim(regressors)
     output = {keys: {} for keys in models}
     for stim_pres in models:
@@ -397,7 +458,7 @@ def sim_fit_sub_2stim(n_trials, repetition_time=1, mu_expnorm=600,
                     'p_beta1': fit.pvalues[1],
                     'beta2_est': fit.params[2],
                     'p_beta2': fit.pvalues[2]}     
-    return output, mean_rt
+    return output, mean_rt, skew_kurt
 
 
 def est_within_sub_eff_size_2stim(n_trials, repetition_time=1,
@@ -408,7 +469,8 @@ def est_within_sub_eff_size_2stim(n_trials, repetition_time=1,
                                                     'dv_scales_no': .1},
                                   beta_scales_yes=np.array([.1, .1]),
                                   beta_scales_no=np.array([.1, .1]),
-                                  center_rt=True, rt_diff_s=1, nsim=500):
+                                  center_rt=True, rt_diff_s=1, nsim=500,
+                                  per_shift_mu=np.array([.76, .76])):
     """
     """
     beta_types = ['beta1_scales_yes', 'beta2_scales_yes',
@@ -417,13 +479,13 @@ def est_within_sub_eff_size_2stim(n_trials, repetition_time=1,
         make_multi_level_empty_dict([['blocked', 'random'], 
                                     beta_types], 'eff_size_cor', nsim)
     for sim_num in range(nsim):
-        regressors, _ = \
+        regressors, _, _ = \
             make_regressors_two_trial_types(n_trials,
                                             repetition_time, mu_expnorm,
                                             lam_expnorm, sigma_expnorm,
                                             max_rt, min_rt, event_duration,
                                             ISI_min, ISI_max, center_rt,
-                                            rt_diff_s)
+                                            rt_diff_s, per_shift_mu)
         scan_length = len(regressors['stim1_random'])
         dct_basis = make_dct_basis(scan_length)
         models = make_design_matrices_2stim(regressors)
@@ -472,18 +534,18 @@ def est_var_ratio_2stim(n_trials, repetition_time=1, mu_expnorm=600,
               win_sub_noise_sd={'dv_scales_yes': .1, 'dv_scales_no': .1},
               btwn_sub_noise_sd={'dv_scales_yes': 1, 'dv_scales_no': 1},
               center_rt=True, 
-              rt_diff_s = 1, nsim= 500):
+              rt_diff_s = 1, nsim= 500, per_shift_mu=np.array([.76, .76])):
     """
     """
     stimulus_types, model_types, dv_types = make_group_names()
     des_sd_con_sim = make_multi_level_empty_dict([stimulus_types,
                 model_types], 'des_sd', nsim)
     for sim_num in range(nsim):
-        regressors, _ = make_regressors_two_trial_types(n_trials, 
+        regressors, _, _ = make_regressors_two_trial_types(n_trials, 
                                    repetition_time, mu_expnorm, 
                                    lam_expnorm, sigma_expnorm,
                                    max_rt, min_rt, event_duration, ISI_min, 
-                                   ISI_max, center_rt, rt_diff_s)
+                                   ISI_max, center_rt, rt_diff_s, per_shift_mu)
         scan_length = len(regressors['stim1_random'])
         dct_basis = make_dct_basis(scan_length)
         contrasts = make_lev1_contrasts(dct_basis)
@@ -525,7 +587,7 @@ def est_group_cohen_d(n_trials,  repetition_time=1, mu_expnorm=600,
               beta_scales_yes=np.array([.1, .1]), 
               beta_scales_no=np.array([.1, .1]), 
               center_rt=True, 
-              rt_diff_s = 1, nsim= 500):
+              rt_diff_s = 1, nsim= 500, per_shift_mu=np.array([.76, .76])):
 
     """
     """
@@ -535,11 +597,11 @@ def est_group_cohen_d(n_trials,  repetition_time=1, mu_expnorm=600,
     con_est = make_multi_level_empty_dict([stim_types, dv_types, 
                   desmat_names, ['diff', 'beta1']], 'con_est', nsim)
     for sim_num in range(nsim):
-        regressors, _ = make_regressors_two_trial_types(n_trials, 
+        regressors, _, _ = make_regressors_two_trial_types(n_trials, 
                                    repetition_time, mu_expnorm, 
                                    lam_expnorm, sigma_expnorm,
                                    max_rt, min_rt, event_duration, ISI_min, 
-                                   ISI_max, center_rt, rt_diff_s)
+                                   ISI_max, center_rt, rt_diff_s, per_shift_mu)
         scan_length = len(regressors['stim1_random'])
         dct_basis = make_dct_basis(scan_length)
         models = make_design_matrices_2stim(regressors)
@@ -603,7 +665,7 @@ def group_2stim_rt_diff_vec(n_trials, repetition_time=1, mu_expnorm=600,
               btwn_sub_noise_sd={'dv_scales_yes': 1, 'dv_scales_no': 1},
               center_rt=True, beta_scales_yes=np.array([.1, .1]),
               beta_scales_no=np.array([.1, .1]), 
-              rt_diff_s_vec=[0, .1], nsub=50, nsim=1000):
+              rt_diff_s_vec=[0, .1], nsub=50, nsim=1000, per_shift_mu=np.array([.76, .76])):
     """
     """
     stimulus_types, model_types, dv_types = make_group_names()
@@ -618,6 +680,7 @@ def group_2stim_rt_diff_vec(n_trials, repetition_time=1, mu_expnorm=600,
     group_rtmn_cor_avg = make_multi_level_empty_dict([stimulus_types, model_types, dv_types,
                                     con_types], None , num_rt_diff)
     for idx_rt_diff_s, rt_diff_s in enumerate(rt_diff_s_vec):
+        print(f'rt diff is {rt_diff_s}')
         stimulus_types, model_types, dv_types = make_group_names()
         group_p = make_multi_level_empty_dict([stimulus_types, model_types, dv_types,
                         con_types], None, nsim)
@@ -638,13 +701,13 @@ def group_2stim_rt_diff_vec(n_trials, repetition_time=1, mu_expnorm=600,
                 beta_scales_no_sub = beta_scales_no + \
                     np.random.normal(0, 
                     btwn_sub_noise_sd['dv_scales_no'], (1, 2))[0]
-                output_model, mns = sim_fit_sub_2stim(n_trials,  
+                output_model, mns, skew_kurt = sim_fit_sub_2stim(n_trials,  
                 repetition_time, mu_expnorm,
                 lam_expnorm, sigma_expnorm, max_rt, 
                 min_rt, event_duration, ISI_min, ISI_max, 
                 win_sub_noise_sd, 
                 center_rt, beta_scales_yes_sub, beta_scales_no_sub, 
-                rt_diff_s)
+                rt_diff_s, per_shift_mu)
                 mnrt_diff_subs['blocked'][subnum] = mns['block2_mean'] - \
                                                 mns['block1_mean']
                 mnrt_diff_subs['random'][subnum] = mns['random2_mean'] -\
@@ -662,10 +725,8 @@ def group_2stim_rt_diff_vec(n_trials, repetition_time=1, mu_expnorm=600,
                                 output_model[cur_stimulus_type][cur_model_type]\
                                 [cur_dv_type][con_type]
             for cur_stimulus_type in stimulus_types:
-                desmat_rtdiff = sm.add_constant(mnrt_diff_subs\
-                             [cur_stimulus_type])
-                desmat_mnrt = sm.add_constant(rt_avg_subs\
-                             [cur_stimulus_type])
+                desmat_rtdiff = sm.add_constant(mnrt_diff_subs[cur_stimulus_type])
+                desmat_mnrt = sm.add_constant(rt_avg_subs[cur_stimulus_type])
                 for cur_model_type in model_types:
                     for cur_dv_type in dv_types:
                         for con_type in con_types:
@@ -724,7 +785,7 @@ def group_2stim_beta2_vec(n_trials, repetition_time=1, mu_expnorm=600,
               btwn_sub_noise_sd={'dv_scales_yes': 1, 'dv_scales_no': 1},
               center_rt=True, beta_scales_yes={'beta1': 1, 'beta2': [1, 1.5]},
               beta_scales_no={'beta1': 1, 'beta2': [1, 1.5]}, 
-              rt_diff_s=0.1, nsub=50, nsim=1000):
+              rt_diff_s=0.1, nsub=50, nsim=1000, per_shift_mu=np.array([.76, .76])):
     """
     """
     if len(beta_scales_yes['beta2']) != len(beta_scales_no['beta2']):
@@ -756,13 +817,13 @@ def group_2stim_beta2_vec(n_trials, repetition_time=1, mu_expnorm=600,
                 beta_scales_no_sub = beta_scales_no_loop + \
                     np.random.normal(0, 
                     btwn_sub_noise_sd['dv_scales_no'], (1, 2))[0]
-                output_model, mns = sim_fit_sub_2stim(n_trials, 
+                output_model, mns, skew_kurt = sim_fit_sub_2stim(n_trials, 
                 repetition_time, mu_expnorm,
                 lam_expnorm, sigma_expnorm, max_rt, 
                 min_rt, event_duration, ISI_min, ISI_max, 
                 win_sub_noise_sd, 
                 center_rt, beta_scales_yes_sub, beta_scales_no_sub, 
-                rt_diff_s)
+                rt_diff_s, per_shift_mu)
                 for cur_stimulus_type in stimulus_types:
                     for cur_model_type in model_types:
                         for cur_dv_type in dv_types:

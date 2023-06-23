@@ -10,7 +10,7 @@ sys.path.insert(1, root_dir + '/Code')
 from functions import group_2stim_beta2_vec
 import json
 
-rt_diff_s = 0.10
+rt_diff_s = 0.8
 
 args_in = sys.argv
 simulation_settings = args_in[1]
@@ -20,13 +20,14 @@ ISI_min = int(args_in[3])
 ISI_max = int(args_in[4])
 
 
-out_results_name = (f'{root_dir}/Output/group_power_output_nsim{nsim}_'
+out_results_name = (f'{root_dir}/Output/revisions/group_power_output_nsim{nsim}_'
     f'nsub{var_in.nsub}_mu{var_in.mu_expnorm}_btwn_noise{var_in.btwn_sub_noise_sd["dv_scales_yes"]}'
-    f'{var_in.btwn_sub_noise_sd["dv_scales_no"]}_isi{ISI_min}_{ISI_max}_rtdiff_{rt_diff_s}new.csv')
-out_settings_name = (f'{root_dir}/Output/group_power_output_nsim{nsim}_'
+    f'{var_in.btwn_sub_noise_sd["dv_scales_no"]}_isi{ISI_min}_{ISI_max}_rtdiff_{rt_diff_s}_revisions.csv')
+out_settings_name = (f'{root_dir}/Output/revisions/group_power_output_nsim{nsim}_'
     f'nsub{var_in.nsub}_mu{var_in.mu_expnorm}_settings_btwn_noise'
     f'{var_in.btwn_sub_noise_sd["dv_scales_yes"]}'
-    f'{var_in.btwn_sub_noise_sd["dv_scales_no"]}_isi{ISI_min}_{ISI_max}_{rt_diff_s}new.json')
+    f'{var_in.btwn_sub_noise_sd["dv_scales_no"]}_isi{ISI_min}_{ISI_max}_{rt_diff_s}_revisions.json')
+
 
 output_power = group_2stim_beta2_vec(var_in.n_trials, var_in.repetition_time, var_in.mu_expnorm,
               var_in.lam_expnorm, var_in.sigma_expnorm, var_in.max_rt, 
@@ -39,10 +40,7 @@ output_power = group_2stim_beta2_vec(var_in.n_trials, var_in.repetition_time, va
 
 
 data_type = ['blocked', 'random']
-models = ['Two stimulus types, no RT', 'Two stimulus types, RT mod',
-          'Two stimulus types, RTmod interaction, con main', 
-          'Two stimulus types, RTmod interaction, con int',
-          'Two stimulus types, 2 RT dur only']
+models = list(output_power['group_rej_rate']['blocked'].keys())
 scale_type = ['dv_scales_yes', 'dv_scales_no']
 beta_con_type = ['beta_diff_est', 'beta2_est']
 
